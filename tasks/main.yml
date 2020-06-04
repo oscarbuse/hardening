@@ -1,0 +1,68 @@
+---
+- name: Remove the user 'vagrant'
+  user:
+    name: vagrant
+    state: absent
+    remove: yes
+
+- name: Remove sudo file for user vagratn
+  file:
+    path: /etc/sudoers.d/99_vagrant
+    state: absent
+
+- name: Put /etc/ssh_banner.txt in place
+  template:
+    src: ssh_banner.txt.j2
+    dest: /etc/ssh_banner.txt
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - ssh_banner
+
+- name: Put sshd_config in place
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - ssh_banner
+  notify:
+    - reload sshd
+
+- name: Remove directory /root/.ssh
+  file:
+    path: /root/.ssh
+    state: absent
+
+- name: Change root password
+  user:
+    name: root
+    update_password: always
+    password: "{{ crypted_root_password }}"
+
+- name: Set readonly TMOUT (1800) variable for shell in /etc/bash.bashrc
+  lineinfile:
+    path: /etc/bash.bashrc
+    insertafter: '^nothere'
+    line: "readonly TMOUT=1800"
+
+- name: Add /etc/security/nosu_to_root (used by /etc/pam.d/su)
+  copy:
+    src: nosu_to_root
+    dest: /etc/security/nosu_to_root
+    owner: root
+    group: root
+    mode: 0600
+  tags:
+    - disable_su
+
+- name: Disable su to root
+  lineinfile:
+    path: /etc/pam.d/su
+    insertafter: '^session    required   pam_limits.so'
+    line: "auth required pam_listfile.so onerr=succeed  item=user  sense=deny  file=/etc/security/nosu_to_root"
+  tags:
+    - disable_su
